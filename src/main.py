@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import torch
+from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
@@ -20,6 +21,9 @@ test_data = datasets.CIFAR10(
     train=False,
     download=True,
     transform=transforms.ToTensor())
+
+training_data_loader = DataLoader(training_data, batch_size=64, shuffle=True)
+test_data_loader = DataLoader(test_data, batch_size=64, shuffle=True)
 
 
 # 読み込んだデータセットの可視化
@@ -50,3 +54,18 @@ for i in range(rows * cols):
     plt.imshow(image.permute(1, 2, 0))
 
 plt.show()
+
+
+# データローダーの確認
+
+# train_features: torch.Size([N, C, W, H])
+#     N: number of batches
+#     C: number of channels in images from the dataset
+#     W: width of images from the dataset
+#     H: height of images from the dataset
+
+# train_labels: torch.Size([N])
+
+train_features, train_labels = next(iter(training_data_loader))
+print(f"feature batch size: {train_features.size()}")
+print(f"label batch size: {train_labels.size()}")
