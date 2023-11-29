@@ -194,8 +194,8 @@ def train_loop(model, training_data_loader, optimizer, epoch):
         # y: labels
         x = x.to(device)
         y = y.to(device)
-        y_hat = model(x)
-        loss = nn.functional.cross_entropy(y_hat, y)
+        pred = model(x)  # not softmax-ed yet
+        loss = nn.functional.cross_entropy(pred, y)
 
         optimizer.zero_grad()
         loss.backward()
@@ -208,6 +208,24 @@ def train_loop(model, training_data_loader, optimizer, epoch):
             print(f"loss: {loss.item():>7f}")
 
 
+# テスト用の関数の定義
+
+def test_loop(model, test_data_loader):
+    correct = 0
+
+    model.eval()
+    for x, y in test_data_loader:
+        x = x.to(device)
+        y = y.to(device)
+        pred = model(x)
+        y_hat = pred.argmax(dim=1, keepdim=True)
+
+        correct += y_hat.eq(y.view_as(y_hat)).sum().item()
+
+    accuracy = correct / len(test_data_loader.dataset)
+    print(f"test-set accuracy: {accuracy:>12f}\n")
+
+
 # 学習・テスト
 
 def main():
@@ -216,5 +234,6 @@ def main():
 
     for epoch in range(5):
         train_loop(model, training_data_loader, optimizer, epoch)
+        test_loop(model, test_data_loader)
 
 main()
