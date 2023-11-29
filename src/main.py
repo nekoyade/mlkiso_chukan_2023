@@ -100,6 +100,8 @@ def show_concatenated_images(image_list_2d, title):
     plt.title(title)
     plt.imshow(concatenated_image.detach().numpy(), cmap="viridis")
 
+print("changes in data size:")
+print(sample_images[0][0].size())
 show_concatenated_images(sample_images, "sample images")
 
 f = nn.Conv2d(3, 32, kernel_size=3, stride=1)
@@ -107,6 +109,7 @@ for i in range(rows):
     for j in range(cols):
         sample_images[i][j] = f(sample_images[i][j])
 
+print(sample_images[0][0].size())
 show_concatenated_images(
     sample_images, "nn.Conv2d(3, 32, kernel_size=3, stride=1)")
 
@@ -115,6 +118,7 @@ for i in range(rows):
     for j in range(cols):
         sample_images[i][j] = f(sample_images[i][j])
 
+print(sample_images[0][0].size())
 show_concatenated_images(
     sample_images, "nn.MaxPool2d(kernel_size=2)")
 
@@ -123,6 +127,7 @@ for i in range(rows):
     for j in range(cols):
         sample_images[i][j] = f(sample_images[i][j])
 
+print(sample_images[0][0].size())
 show_concatenated_images(
     sample_images, "nn.Conv2d(32, 64, kernel_size=3, stride=1)")
 
@@ -131,6 +136,7 @@ for i in range(rows):
     for j in range(cols):
         sample_images[i][j] = f(sample_images[i][j])
 
+print(sample_images[0][0].size())
 show_concatenated_images(
     sample_images, "nn.MaxPool2d(kernel_size=2)")
 
@@ -150,12 +156,27 @@ class CustomCNN(nn.Module):
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
+        self.dropout1 = nn.Dropout(p=0.25)
+        self.fc1 = nn.Linear(2304, 512)
+        self.dropout2 = nn.Dropout(p=0.5)
+        self.fc2 = nn.Linear(512, 128)
+        self.fc3 = nn.Linear(128, len(label_map))
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.pool1(x)
+        # Using ReLU() as an activation function
+        # input batch size:           [64,  3, 32, 32]
+        x = self.conv1(x)           # [64, 32, 30, 30]
         x = nn.ReLU(x)
-        x = self.conv2(x)
-        x = self.pool2(x)
+        x = self.pool1(x)           # [64, 32, 15, 15]
+        x = self.conv2(x)           # [64, 64, 13, 13]
         x = nn.ReLU(x)
-        # Add more... (referred to AlexNet)
+        x = self.pool2(x)           # [64, 64, 6, 6]
+        x = self.dropout1(x)
+        x = nn.Flatten(x, 1)
+        x = self.fc1(x)
+        x = nn.ReLU(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        x = nn.ReLU(x)
+        x = self.fc3(x)
+        return x
