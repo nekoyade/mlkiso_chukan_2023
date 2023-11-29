@@ -104,14 +104,14 @@ print("changes in data size:")
 print(sample_images[0][0].size())
 show_concatenated_images(sample_images, "sample images")
 
-f = nn.Conv2d(3, 32, kernel_size=3, stride=1)
+f = nn.Conv2d(3, 64, kernel_size=3, stride=1)
 for i in range(rows):
     for j in range(cols):
         sample_images[i][j] = f(sample_images[i][j])
 
 print(sample_images[0][0].size())
 show_concatenated_images(
-    sample_images, "nn.Conv2d(3, 32, kernel_size=3, stride=1)")
+    sample_images, "nn.Conv2d(3, 64, kernel_size=3, stride=1)")
 
 f = nn.MaxPool2d(kernel_size=2)
 for i in range(rows):
@@ -122,14 +122,14 @@ print(sample_images[0][0].size())
 show_concatenated_images(
     sample_images, "nn.MaxPool2d(kernel_size=2)")
 
-f = nn.Conv2d(32, 64, kernel_size=3, stride=1)
+f = nn.Conv2d(64, 128, kernel_size=3, stride=1)
 for i in range(rows):
     for j in range(cols):
         sample_images[i][j] = f(sample_images[i][j])
 
 print(sample_images[0][0].size())
 show_concatenated_images(
-    sample_images, "nn.Conv2d(32, 64, kernel_size=3, stride=1)")
+    sample_images, "nn.Conv2d(64, 128, kernel_size=3, stride=1)")
 
 f = nn.MaxPool2d(kernel_size=2)
 for i in range(rows):
@@ -152,25 +152,25 @@ print(f"using {device} device for training")
 class CustomCNN(nn.Module):
     def __init__(self):
         super(CustomCNN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1)
         self.pool1 = nn.MaxPool2d(kernel_size=2)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
-        self.dropout1 = nn.Dropout(p=0.25)
-        self.fc1 = nn.Linear(2304, 512)
+        self.dropout1 = nn.Dropout(p=0.5)
+        self.fc1 = nn.Linear(128 * 6 * 6, 512)
         self.dropout2 = nn.Dropout(p=0.5)
-        self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, len(label_map))
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, len(label_map))
 
     def forward(self, x):
         # Using ReLU() as an activation function
-        # input batch size:           [64,  3, 32, 32]
-        x = self.conv1(x)           # [64, 32, 30, 30]
+        # input batch size:           [64,   3, 32, 32]
+        x = self.conv1(x)           # [64,  64, 30, 30]
         x = nn.functional.relu(x)
-        x = self.pool1(x)           # [64, 32, 15, 15]
-        x = self.conv2(x)           # [64, 64, 13, 13]
+        x = self.pool1(x)           # [64,  64, 15, 15]
+        x = self.conv2(x)           # [64, 128, 13, 13]
         x = nn.functional.relu(x)
-        x = self.pool2(x)           # [64, 64, 6, 6]
+        x = self.pool2(x)           # [64, 128,  6,  6]
         x = self.dropout1(x)
         x = torch.flatten(x, 1)
         x = self.fc1(x)
@@ -185,8 +185,10 @@ class CustomCNN(nn.Module):
 # 学習用の関数の定義
 
 def train_loop(model, training_data_loader, optimizer, epoch):
-    print(f"[epoch {epoch+1}]")
+    train_loss_ave = 0.0
     size = len(training_data_loader.dataset)
+
+    print(f"[epoch {epoch+1}]")
 
     model.train()
     for batch_index, (x, y) in enumerate(training_data_loader):
@@ -201,11 +203,16 @@ def train_loop(model, training_data_loader, optimizer, epoch):
         loss.backward()
         optimizer.step()
 
+        train_loss_ave += loss.item()
+
         if batch_index % 100 == 0:
             current = (batch_index + 1) * len(x)
             print(f"batch: {batch_index+1:>5d} ({current:>5d}/{size:>5d})",
                   end="  ")
             print(f"loss: {loss.item():>7f}")
+
+    train_loss_ave /= size
+    return train_loss_ave
 
 
 # テスト用の関数の定義
@@ -225,6 +232,8 @@ def test_loop(model, test_data_loader):
     accuracy = correct / len(test_data_loader.dataset)
     print(f"test-set accuracy: {accuracy:>12f}\n")
 
+    return accuracy
+
 
 # 学習・テスト
 
@@ -232,8 +241,22 @@ def main():
     model = CustomCNN().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
+    epoch_list = []
+    accuracy_list = []
+
     for epoch in range(5):
         train_loop(model, training_data_loader, optimizer, epoch)
-        test_loop(model, test_data_loader)
+        accuracy = test_loop(model, test_data_loader)
+
+        epoch_list.append(str(epoch + 1))
+        accuracy_list.append(accuracy)
+
+    # 誤差のグラフ化
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(epoch_list, accuracy_list)
+    ax.set_xlabel("epoch")
+    ax.set_ylabel("accuracy [%]")
+    plt.show()
 
 main()
