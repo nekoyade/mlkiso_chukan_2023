@@ -166,17 +166,55 @@ class CustomCNN(nn.Module):
         # Using ReLU() as an activation function
         # input batch size:           [64,  3, 32, 32]
         x = self.conv1(x)           # [64, 32, 30, 30]
-        x = nn.ReLU(x)
+        x = nn.functional.relu(x)
         x = self.pool1(x)           # [64, 32, 15, 15]
         x = self.conv2(x)           # [64, 64, 13, 13]
-        x = nn.ReLU(x)
+        x = nn.functional.relu(x)
         x = self.pool2(x)           # [64, 64, 6, 6]
         x = self.dropout1(x)
-        x = nn.Flatten(x, 1)
+        x = torch.flatten(x, 1)
         x = self.fc1(x)
-        x = nn.ReLU(x)
+        x = nn.functional.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
-        x = nn.ReLU(x)
+        x = nn.functional.relu(x)
         x = self.fc3(x)
         return x
+
+
+# 学習用の関数の定義
+
+def train_loop(model, training_data_loader, optimizer, epoch):
+    print(f"[epoch {epoch+1}]")
+    size = len(training_data_loader.dataset)
+
+    model.train()
+    for batch_index, (x, y) in enumerate(training_data_loader):
+        # x: features
+        # y: labels
+        x = x.to(device)
+        y = y.to(device)
+        y_hat = model(x)
+        loss = nn.functional.cross_entropy(y_hat, y)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if batch_index % 100 == 0:
+            current = (batch_index + 1) * len(x)
+            print(f"batch: {batch_index+1:>5d} ({current:>5d}/{size:>5d})",
+                  end="  ")
+            print(f"loss: {loss.item():>7f}")
+
+
+# 学習・テスト
+
+def main():
+    model = CustomCNN().to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    for epoch in range(5):
+        train_loop(model, training_data_loader, optimizer, epoch)
+
+main()
