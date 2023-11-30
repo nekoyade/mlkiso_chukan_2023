@@ -1,3 +1,12 @@
+# Google Colaboratory 使用のための前処理
+
+"""
+! pip install torchinfo
+
+%matplotlib inline
+"""
+
+
 from copy import deepcopy
 import time
 
@@ -6,6 +15,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+import torchinfo
 from torchvision import datasets, transforms
 
 
@@ -263,6 +273,13 @@ class CustomCNN3(nn.Module):
         x = nn.functional.relu(x)
         x = self.fc3(x)
         return x
+
+
+# モデルのパラメータ数の確認
+
+model_types = [CustomCNN1, CustomCNN2, CustomCNN3]
+for model_type in model_types:
+    print(torchinfo.summary(model_type(), (3, 32, 32)))
 
 
 # 学習用の関数の定義
