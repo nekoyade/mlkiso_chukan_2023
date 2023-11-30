@@ -1,6 +1,8 @@
 from copy import deepcopy
+import time
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
@@ -162,15 +164,81 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"using {device} device for training")
 
 
-# モデルの定義
+# モデルの定義（プーリング層：なし）
 
-class CustomCNN(nn.Module):
+class CustomCNN1(nn.Module):
     def __init__(self):
-        super(CustomCNN, self).__init__()
+        super(CustomCNN1, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1)
+        self.dropout1 = nn.Dropout(p=0.5)
+        self.fc1 = nn.Linear(128 * 28 * 28, 512)
+        self.dropout2 = nn.Dropout(p=0.5)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, len(label_map))
+
+    def forward(self, x):
+        # Using ReLU() as an activation function
+        # input batch size:           [64,   3, 32, 32]
+        x = self.conv1(x)           # [64,  64, 30, 30]
+        x = nn.functional.relu(x)
+        x = self.conv2(x)           # [64, 128, 28, 28]
+        x = nn.functional.relu(x)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = nn.functional.relu(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        x = nn.functional.relu(x)
+        x = self.fc3(x)
+        return x
+
+
+# モデルの定義（プーリング層：MaxPool2d）
+
+class CustomCNN2(nn.Module):
+    def __init__(self):
+        super(CustomCNN2, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1)
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
+        self.dropout1 = nn.Dropout(p=0.5)
+        self.fc1 = nn.Linear(128 * 6 * 6, 512)
+        self.dropout2 = nn.Dropout(p=0.5)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, len(label_map))
+
+    def forward(self, x):
+        # Using ReLU() as an activation function
+        # input batch size:           [64,   3, 32, 32]
+        x = self.conv1(x)           # [64,  64, 30, 30]
+        x = nn.functional.relu(x)
+        x = self.pool1(x)           # [64,  64, 15, 15]
+        x = self.conv2(x)           # [64, 128, 13, 13]
+        x = nn.functional.relu(x)
+        x = self.pool2(x)           # [64, 128,  6,  6]
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = nn.functional.relu(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        x = nn.functional.relu(x)
+        x = self.fc3(x)
+        return x
+
+
+# モデルの定義（プーリング層：AvgPool2d）
+
+class CustomCNN3(nn.Module):
+    def __init__(self):
+        super(CustomCNN3, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1)
+        self.pool1 = nn.AvgPool2d(kernel_size=2)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1)
+        self.pool2 = nn.AvgPool2d(kernel_size=2)
         self.dropout1 = nn.Dropout(p=0.5)
         self.fc1 = nn.Linear(128 * 6 * 6, 512)
         self.dropout2 = nn.Dropout(p=0.5)
@@ -206,6 +274,7 @@ def train_loop(model, training_data_loader, optimizer, epoch):
     print(f"[epoch {epoch+1}]")
 
     model.train()
+    start_time = time.perf_counter()
     for batch_index, (x, y) in enumerate(training_data_loader):
         # x: features
         # y: labels
@@ -225,9 +294,11 @@ def train_loop(model, training_data_loader, optimizer, epoch):
             print(f"batch: {batch_index+1:>5d} ({current:>5d}/{size:>5d})",
                   end="  ")
             print(f"loss: {loss.item():>7f}")
+    end_time = time.perf_counter()
+    delta_time = end_time - start_time
 
     train_loss_ave /= size
-    return train_loss_ave
+    return train_loss_ave, delta_time
 
 
 # テスト用の関数の定義
@@ -250,28 +321,74 @@ def test_loop(model, test_data_loader):
     return accuracy
 
 
-# 学習・テスト
+# 学習・テスト用メインループ
 
-def main():
-    model = CustomCNN().to(device)
+epochs = 5
+epoch_list = [str(i + 1) for i in range(epochs)]
+
+accuracy_dict = {1: [], 2: [], 3: []}
+time_dict = {1: [], 2: [], 3: []}
+time_ave_dict = {1: [], 2: [], 3: []}
+
+def main(model_type, key):
+    model = model_type().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    epoch_list = []
-    accuracy_list = []
+    accuracy_dict[key] = []
+    time_dict[key] = []
 
-    for epoch in range(5):
-        train_loop(model, training_data_loader, optimizer, epoch)
+    for epoch in range(epochs):
+        _, dt = train_loop(model, training_data_loader, optimizer, epoch)
+        time_dict[key].append(dt)
+
         accuracy = test_loop(model, test_data_loader)
 
-        epoch_list.append(str(epoch + 1))
-        accuracy_list.append(accuracy)
+        accuracy_dict[key].append(accuracy * 100)
 
-    # 誤差のグラフ化
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(epoch_list, accuracy_list)
-    ax.set_xlabel("epoch")
-    ax.set_ylabel("accuracy [%]")
-    plt.show()
 
-main()
+# 学習・テスト
+
+main(CustomCNN1, 1)
+main(CustomCNN2, 2)
+main(CustomCNN3, 3)
+
+
+# グラフの表示
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+for i in [1, 2, 3]:
+    ax.plot(epoch_list, accuracy_dict[i], label=f"CustomCNN{i}")
+ax.set_ylim(0, 100)
+ax.set_xlabel("epoch")
+ax.set_ylabel("accuracy")
+ax.legend()
+plt.show()
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+x = np.arange(len(epoch_list))
+margin = 0.2
+total_width = 1.0 - margin
+width = total_width / 3
+for i in [1, 2, 3]:
+    tmp_x = x + width*(i - 2)
+    ax.bar(tmp_x, time_dict[i], width=width, label=f"CustomCNN{i}")
+plt.xticks(x, epoch_list)
+ax.set_xlabel("epoch")
+ax.set_ylabel("total computing time [s]")
+ax.legend()
+plt.show()
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+x = np.arange(3)
+tmp_list = []
+for i in [1, 2, 3]:
+    time_ave_dict[i] = [sum(time_dict[i]) / len(time_dict[i])]
+    tmp_list.extend(time_ave_dict[i])
+ax.bar(x, tmp_list, width=0.5)
+plt.xticks(x, ["CustomCNN1", "CustomCNN2", "CustomCNN3"])
+ax.set_xlabel("model")
+ax.set_ylabel("computing time per epoch [s]")
+plt.show()
