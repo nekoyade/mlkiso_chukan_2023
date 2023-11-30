@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import matplotlib.pyplot as plt
 import torch
 from torch import nn
@@ -72,18 +74,20 @@ print(f"feature batch size: {train_features.size()}")
 print(f"label batch size: {train_labels.size()}")
 
 
-# モデルによるデータ変換の可視化
+# モデルによるデータ変換の可視化のための準備
 
-sample_images = []
+def load_sample_images(rows, cols):
+    sample_images = []
+    for _ in range(rows):
+        tmp_list = []
+        for _ in range(cols):
+            sample_index = torch.randint(len(training_data), size=(1,)).item()
+            image, _ = training_data[sample_index]
+            tmp_list.append(image)
+        sample_images.append(tmp_list)
+    return sample_images
 
-rows, cols = 4, 8
-for i in range(rows):
-    tmp_list = []
-    for j in range(cols):
-        sample_index = torch.randint(len(training_data), size=(1,)).item()
-        image, _ = training_data[sample_index]
-        tmp_list.append(image)
-    sample_images.append(tmp_list)
+sample_images = load_sample_images(4, 8)
 
 def show_concatenated_images(image_list_2d, title):
     rows = len(image_list_2d)
@@ -100,45 +104,56 @@ def show_concatenated_images(image_list_2d, title):
     plt.title(title)
     plt.imshow(concatenated_image.detach().numpy(), cmap="viridis")
 
-print("changes in data size:")
-print(sample_images[0][0].size())
-show_concatenated_images(sample_images, "sample images")
+def show_data_transformation(images, funcs, titles):
+    print("[original images]")
+    print(f"size: {images[0][0].size()}")
+    show_concatenated_images(images, "original images")
 
-f = nn.Conv2d(3, 64, kernel_size=3, stride=1)
-for i in range(rows):
-    for j in range(cols):
-        sample_images[i][j] = f(sample_images[i][j])
+    for func, title in zip(funcs, titles):
+        for i in range(len(images)):
+            for j in range(len(images[i])):
+                images[i][j] = func(images[i][j])
 
-print(sample_images[0][0].size())
-show_concatenated_images(
-    sample_images, "nn.Conv2d(3, 64, kernel_size=3, stride=1)")
+        print(f"[{title}]")
+        print(f"size: {images[0][0].size()}")
+        show_concatenated_images(images, title)
 
-f = nn.MaxPool2d(kernel_size=2)
-for i in range(rows):
-    for j in range(cols):
-        sample_images[i][j] = f(sample_images[i][j])
 
-print(sample_images[0][0].size())
-show_concatenated_images(
-    sample_images, "nn.MaxPool2d(kernel_size=2)")
+# データ変換の可視化（プーリング層：なし）
 
-f = nn.Conv2d(64, 128, kernel_size=3, stride=1)
-for i in range(rows):
-    for j in range(cols):
-        sample_images[i][j] = f(sample_images[i][j])
+images = deepcopy(sample_images)
+funcs = [
+    nn.Conv2d(3, 64, kernel_size=3, stride=1),
+    nn.Conv2d(64, 128, kernel_size=3, stride=1),
+]
+titles = [str(f) for f in funcs]
+show_data_transformation(images, funcs, titles)
 
-print(sample_images[0][0].size())
-show_concatenated_images(
-    sample_images, "nn.Conv2d(64, 128, kernel_size=3, stride=1)")
 
-f = nn.MaxPool2d(kernel_size=2)
-for i in range(rows):
-    for j in range(cols):
-        sample_images[i][j] = f(sample_images[i][j])
+# データ変換の可視化（プーリング層：MaxPool2d）
 
-print(sample_images[0][0].size())
-show_concatenated_images(
-    sample_images, "nn.MaxPool2d(kernel_size=2)")
+images = deepcopy(sample_images)
+funcs = [
+    nn.Conv2d(3, 64, kernel_size=3, stride=1),
+    nn.MaxPool2d(kernel_size=2),
+    nn.Conv2d(64, 128, kernel_size=3, stride=1),
+    nn.MaxPool2d(kernel_size=2)
+]
+titles = [str(f) for f in funcs]
+show_data_transformation(images, funcs, titles)
+
+
+# データ変換の可視化（プーリング層：AvgPool2d）
+
+images = deepcopy(sample_images)
+funcs = [
+    nn.Conv2d(3, 64, kernel_size=3, stride=1),
+    nn.AvgPool2d(kernel_size=2),
+    nn.Conv2d(64, 128, kernel_size=3, stride=1),
+    nn.AvgPool2d(kernel_size=2)
+]
+titles = [str(f) for f in funcs]
+show_data_transformation(images, funcs, titles)
 
 
 # 訓練に使用するデバイスを確認
